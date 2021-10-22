@@ -1,0 +1,44 @@
+version: 2.1
+jobs:
+  build: 
+    machine: 
+      image: ubuntu-2004:202010-01
+    steps: 
+      - checkout
+      - run:
+          name: Run tests
+          command: make test-with-coverage
+      - run:
+          name: Run build
+          command: make build
+      - attach_workspace: 
+          at: ~/project 
+      - persist_to_workspace: 
+          root: ~/project
+          paths:
+            - ./
+
+  sonarqube:
+    machine: true
+    steps:
+      - attach_workspace:
+            at: ~/project
+      - run:
+            name: Docker Login
+            command: echo ${DOCKER_PASSWORD} | docker login -u ${DOCKER_USERNAME} --password-stdin
+      - run:
+            name: Pull pagarme/sonar-scanner
+            command: docker pull pagarme/sonar-scanner:latest
+      - run:
+            name: Sonar Analyses
+            command: make sonar BRANCH=$CIRCLE_BRANCH
+
+workflows:
+  version: 2
+  tests:
+    jobs:
+      - build
+      - sonarqube:
+          context: dockerhub
+          requires:
+            - build

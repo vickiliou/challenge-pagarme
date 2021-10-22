@@ -1,0 +1,823 @@
+openapi: 3.0.0
+info:
+  title: API Pagar.me
+  version: v1
+tags:
+  - name: transactions
+
+servers:
+  - url: https://api.pagar.me/1
+
+paths:
+  /transactions:
+    post:
+      tags: 
+      - transactions
+      summary: Criar uma transação
+      parameters:
+        - in: header
+          name: X-PagarMe-User-Agent
+          schema:
+            type: string
+            example: "Pagar.me Checkout/2.0.0"
+          description: "Este campo serve para definir o responsável por criar a transação."
+        - in: header
+          name: X-PagarMe-Version
+          schema:
+            type: string
+            format: date
+            example: "2017-08-28"
+          description: "Através desse header você pode informa a versão da sua api."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Transactions"
+            examples:
+              cartão de crédito:
+                $ref: "#/components/examples/cartaoCredito"
+              boleto:
+                $ref: "#/components/examples/boleto"
+      security:
+        - ApiKeyAuth: []
+      responses:
+        "200":
+          description: "Tudo ocorreu como deveria e sua requisição foi processada com sucesso."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionsResponse"
+              examples:
+                cartão de crédito:
+                  $ref: "#/components/examples/cartaoCreditoResponse"
+        "400":
+          description: "Algum parâmetro obrigatório não foi passado, ou os parâmetros passados não estão corretos."
+        "401":
+          description: "Falta de autorização para acessar este endpoint."
+        "404":
+          description: "Endpoint não encontrado, revise a URL passada."
+        "500":
+          description: "Erro interno do Pagar.me, tente sua requisição novamente. Caso o erro continue, entre em contato com suporte@pagar.me"
+
+components:
+  schemas:
+    ############################ TRANSACTIONS ############################
+    Transactions:
+      type: object
+      required:
+      - amount
+      - card_hash
+      - card_id
+      - card_holder_name
+      - card_expiration_date
+      - card_number
+      - card_cvv
+      - payment_method
+      - billing
+      - items
+      properties:
+        amount:
+          type: integer
+          format: int32
+          minimum: 100
+          description: "Valor a ser cobrado. Deve ser passado em centavos. Ex: R$ 10.00 = 1000. Deve ser no mínimo 1 real (100)"
+          example: 1000
+        card_hash:
+          type: string
+          description: "Informações do cartão do cliente criptografadas em sua aplicação. OBS: apenas para transações de Cartão de crédito você deve passar o card_hash ou card_id. Caso inclua os dados do cartão diretamente pelo código, esse campo torna-se dispensável."
+        card_id:
+          type: string
+          description: "Ao realizar uma transação, retornamos o card_id do cartão, para que nas próximas transações ele possa ser utilizado como forma de identificar os dados de pagamento. Exemplo de utilização: One-click buy. OBS: apenas para transações de Cartão de crédito você deve passar o card_hash ou card_id. Caso inclua os dados do cartão diretamente pelo código, esse campo torna-se dispensável."
+        card_holder_name:
+          type: string
+          description: "Nome do portador do cartão. OBS: apenas para transações de Cartão de crédito você deve passar o card_holder_name"
+        card_expiration_date:
+          type: string
+          description: "Data de validade do cartão no formato MMAA. OBS: apenas para transações de Cartão de crédito você deve passar o card_expiration_date"
+        card_number:
+          type: string
+          description: "Número do cartão. OBS: apenas para transações de Cartão de crédito você deve passar o card_number"
+        card_cvv:
+          type: string
+          description: "Código verificador do cartão. OBS: O card_cvv deve ser passado somente para transações de Cartão de crédito. Esse parâmetro também pode ser passado em conjunto com o card_id, para validarmos seu CVV na criação da transação."
+        payment_method:
+          type: string
+          enum:
+          - credit_card
+          - boleto
+          description: "Método de pagamento da transação. Aceita dois tipos: credit_card e boleto."
+        postback_url:
+          type: string
+          description: "Endpoint do seu sistema que receberá informações a cada atualização da transação. Caso você defina este parâmetro, o processamento da transação se torna assíncrono."
+        async:
+          type: boolean
+          enum:
+          - true
+          - false
+          description: "Utilize false caso queira manter o processamento síncrono de uma transação. Ou seja, a resposta da transação é recebida na hora."
+        installments:
+          type: string
+          description: "Número de parcelas da transação, sendo mínimo: 1 e Máximo: 12. OBS: Se o pagamento for boleto, o padrão é 1"
+        capture:
+          type: string
+          description: "Após a autorização de uma transação, você pode escolher se irá capturar ou adiar a captura do valor. Caso opte por postergar a captura, atribua o valor false."
+        boleto_expiration_date:
+          type: string
+          format: date
+          description: "Prazo limite para pagamento do boleto. Deve ser passado no formato yyyy-MM-dd."
+          default: data atual + 7 dias
+        soft_descriptor:
+          type: string
+          maxLength: 13
+          description: "Descrição que aparecerá na fatura depois do nome de sua empresa. Máximo de 13 caracteres, sendo alfanuméricos e espaços."
+        boleto_instructions:
+          type: string
+          maxLength: 255
+          description: "Campo instruções do boleto. Máximo de 255 caracteres"
+        customer:
+          $ref: "#/components/schemas/Customer"
+        billing:
+          $ref: "#/components/schemas/Billing"
+        shipping:
+          $ref: "#/components/schemas/Shipping"
+        items:
+          $ref: "#/components/schemas/Items"
+        metadata:
+          type: object
+          description: "Você pode passar dados adicionais na criação da transação para facilitar uma futura análise de dados tanto em nossa dashboard, quanto por seus sistemas."
+          example: metadata[ idProduto ]=13933139
+        split_rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/Split_rules"
+          description: "Regras de divisão da transação"
+        boleto_fine:
+          $ref: "#/components/schemas/Boleto_fine"
+        boleto_interest:
+          $ref: "#/components/schemas/Boleto_interest"
+        boleto_rules:
+          type: array
+          items:
+            type: string
+          description: "Combinação de valores que define as regras do boleto emitido. Valores possíveis: 'strict_expiration_date' (restringe o pagamento para até a data de vencimento e apenas o valor exato do documento), 'no_strict' (permite pagamento após o vencimento e valores diferentes do impresso)."
+        reference_key:
+          type: string
+          description: "Valor único que identifica a transação para permitir uma nova tentativa de requisição com a segurança de que a mesma operação não será executada duas vezes acidentalmente."
+        session:
+          type: string
+          maxLength: 100
+          description: "Valor único que identifica a sessão do usuário acessando o site."
+        local_time:
+          type: string
+          format: date-time
+          description: "Data e hora do dispositivo que está efetuando a transação. Deve ser enviado no seguinte formato: yyyy-MM-dd'T'HH:mm:ss'Z. Por exemplo: 2017-10-31T14:53:00.000Z. OBS.: este campo é necessário para transações de mundo físico (com método de captura EMV e Magstripe)"
+      xml:
+        name: Transactions
+    ############################ CUSTOMER ############################
+    Customer:
+      type: object
+      required:
+      - external_id
+      - name
+      - email
+      - country
+      - type
+      - documents
+      - phone_numbers
+      properties:
+        external_id:
+          type: string
+          description: "Identificador do cliente em sua plataforma"
+        name:
+          type: string
+          description: "Nome do cliente"
+        email:
+          type: string
+          description: "E-mail do cliente"
+        country:
+          type: string
+          description: "Nacionalidade do cliente (br, us ...)"
+        type:
+          type: string
+          description: "Tipo de pessoa, individual ou corporation"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Documents"
+          description: "Dados dos documentos dos clientes"
+        phone_numbers:
+          type: array
+          items:
+            type: string
+          description: "Números de telefone dos clientes"
+      xml:
+        name: Customer
+    ############################ BILLING ############################
+    Billing:
+      type: object
+      description: "Obrigatório com o antifraude habilitado. Define os dados de cobrança, como nome e endereço"
+      required:
+      - name
+      - address
+      properties:
+        name:
+          type: string
+          description: "Nome da entidade de cobrança. Nome da pessoa ou empresa responsável pelo pagamento da transação"
+        address:
+          $ref: "#/components/schemas/Address"
+      xml:
+        name: Billing
+    ############################ SHIPPING ############################
+    Shipping:
+      type: object
+      description: "Define os dados de envio da compra, como nome do recebedor, valor do envio e endereço de recebimento. Deve ser preenchido no caso da venda de bem físico (ver objeto items)"
+      required:
+      - name
+      - fee
+      - address
+      properties:
+        name:
+          type: string
+          description: "Nome da entidade de cobrança"
+        fee:
+          type: number
+          description: "Taxa de envio cobrada do comprador. Por exemplo, se a taxa de envio é de dez reais e três centavos (R$10,03), o valor deve ser fornecido como '1003'"
+          example: 1003
+        delivery_date:
+          type: string
+          format: date-time
+          description: "Data de entrega. Estimativa fornecida no formato AAAA-MM-DD"
+        expedited:
+          type: boolean
+          enum:
+          - true
+          - false
+          description: "Entrega expressa. Se for entrega expressa, deve conter ‘true’ (sim). Caso contrário, deve conter ‘false’ (não)"
+        address:
+          $ref: "#/components/schemas/Address"
+      xml:
+        name: Shipping
+    ############################ ITEMS ############################
+    Items:
+      type: object
+      description: "Obrigatório com o antifraude habilitado. Define os dados dos itens vendidos, como nome, preço unitário e quantidade"
+      required:
+      - id
+      - title
+      - unit_price
+      - quantity
+      - tangible
+      properties:
+        id:
+          type: string
+          description: "Número de identificação na loja ou SKU (unidade de manutenção de estoque)"
+        title:
+          type: string
+          description: "Nome do item vendido"
+        unit_price:
+          type: integer
+          description: "Preço por unidade do item vendido, passado em centavos. Ex: R$20,06 = 2006"
+          example: 2006
+        quantity:
+          type: number
+          description: "Número de unidades vendidas do produto"
+        tangible:
+          type: boolean
+          enum:
+          - true
+          - false
+          description: "Caracteriza o produto como bem físico ou não. Por bem físico, entende-se produtos que devem ser enviados fisicamente ao comprador, como calçados, eletrônicos e brinquedos. Se for um bem físico deve conter true (sim). Caso contrário, deve conter false (não)"
+        category:
+          type: string
+          description: "Categoria do item"
+        venue:
+          type: string
+          description: "Local (se evento)"
+        date:
+          type: string
+          format: date
+          description: "Data (se evento). Estimativa fornecida no formato AAAA-MM-DD"
+      xml:
+        name: Items
+    ############################ ADDRESS ############################
+    Address:
+      type: object
+      description: "Obrigatório para todas as transações de cartão de crédito de companhias com antifraude habilitado."
+      required:
+      - street
+      - street_number
+      - zipcode
+      - country
+      - state
+      - city
+      properties:
+        street:
+          type: string
+          description: "Rua"
+        street_number:
+          type: string
+          description: "Número"
+        zipcode:
+          type: string
+          description: "CEP. Para endereço brasileiro, deve conter uma numeração de 8 dígitos"
+        country:
+          type: string
+          description: "País. Duas letras minúsculas. Deve seguir o padão ISO 3166-1 alpha-2"
+        state:
+          type: string
+          description: "Estado"
+        city:
+          type: string
+          description: "Cidade"
+        neighborhood:
+          type: string
+          description: "Bairro"
+        complementary:
+          type: string
+          description: "Complemento. Não pode ser uma string vazia nem null"
+      xml:
+        name: Address
+    ############################ DOCUMENTS ############################
+    Documents:
+      type: object
+      description: "Dados dos documentos dos clientes. Obrigatório para todas as transações de cartão de crédito de companhias com antifraude habilitado."
+      required:
+      - type
+      - number
+      properties:
+        type:
+          type: string
+          enum: 
+          - cpf
+          - cnpj
+          - passport
+          - other
+          description: "Tipo de documento. Para compradores brasileiros, deve ser fornecido ao menos um CPF (no caso de pessoa física, i.e. individual) ou CNPJ (no caso de pessoa jurídica, i.e. corporation). Para compradores internacionais, o documento pode ser um passaporte (type passport) ou um campo personalizado (type other)."
+        number:
+          type: string
+          description: "Número do documento"
+      xml:
+        name: Documents
+    ############################ SPLIT_RULES ############################
+    Split_rules:
+      type: object
+      required:
+      - recipient_id
+      properties:
+        recipient_id:
+          type: string
+          description: "Id do recebedor"
+        liable:
+          type: boolean
+          enum:
+          - true
+          - false
+          default: true
+          description: "Se o recebedor é responsável ou não pelo chargeback. Default true para todos os recebedores da transação."
+        charge_processing_fee:
+          type: boolean
+          enum:
+          - true
+          - false
+          default: true
+          description: "Se o recebedor será cobrado das taxas da criação da transação. Default true para todos os recebedores da transação."
+        percentage:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 100
+          description: "Qual a porcentagem que o recebedor receberá. Deve estar entre 0 e 100. Se amount já está preenchido, não é obrigatório"
+        amount:
+          type: integer
+          format: int32
+          description: "Qual o valor da transação o recebedor receberá. Se percentage já está preenchido, não é obrigatório"
+        charge_remainder:
+          type: boolean
+          enum:
+          - true
+          - false
+          description: "Se o recebedor deverá pagar os eventuais restos das taxas, calculadas em porcentagem. Sendo que o default vai para o primeiro recebedor definido na regra."
+      xml:
+        name: Split_rules
+    ############################ BOLETO_FINE ############################
+    Boleto_fine:
+      type: object
+      properties:
+        days:
+          type: integer
+          format: int32
+          description: "Dias após a expiração do boleto quando a multa deve ser cobrada."
+        amount:
+          type: integer
+          format: int32
+          description: "Valor em centavos da multa."
+        percentage:
+          type: string
+          description: "Valor em porcentagem da multa."
+      xml:
+        name: Boleto_fine
+    ############################ BOLETO_INTEREST ############################
+    Boleto_interest:
+      type: object
+      properties:
+        days:
+          type: integer
+          format: int32
+          description: "Dias após a expiração do boleto quando o juros deve ser cobrado."
+        amount:
+          type: integer
+          format: int32
+          description: "Valor em centavos da taxa de juros que será cobrado por dia."
+        percentage:
+          type: string
+          description: "Valor em porcentagem da taxa de juros que será cobrado por dia."
+      xml:
+        name: Boleto_interest
+    ############################ TRANSACTIONS RESPONSE ############################
+    TransactionsResponse:
+      type: object
+      properties:
+        object:
+          type: string
+          default: transaction
+          description: "Nome do tipo do objeto criado/modificado."
+        status:
+          type: string
+          enum: 
+          - processing
+          - authorized
+          - paid
+          - refunded
+          - waiting_payment
+          - pending_refund
+          - refused
+          description: "Representa o estado da transação. A cada atualização no processamento da transação, esta propriedade é alterada e, caso você esteja usando uma postback_url, os seus servidores são notificados desses updates."
+        refuse_reason:
+          type: string
+          enum:
+          - acquirer
+          - antifraud
+          - internal_error
+          - no_acquirer
+          - acquirer_timeout
+          description: "Motivo pelo qual a transação foi recusada."
+        status_reason:
+          type: string
+          enum:
+          - acquirer
+          - antifraud
+          - internal_error
+          - no_acquirer
+          - acquirer_timeout
+          description: "Agente responsável pela validação ou anulação da transação."
+        acquirer_name:
+          type: string
+          enum:
+          - development
+          - pagarme
+          - stone
+          - cielo
+          - rede
+          description: "Adquirente responsável pelo processamento da transação. Valores possíveis: development (em ambiente de testes), pagarme (adquirente Pagar.me), stone, cielo, rede."
+        acquirer_id:
+          type: string
+          description: "ID da adquirente responsável pelo processamento da transação."
+        acquirer_response_code:
+          type: string
+          description: "Mensagem de resposta da adquirente referente ao status da transação."
+        authorization_code:
+          type: string
+          description: "Código de autorização retornado pela bandeira."
+        soft_descriptor:
+          type: string
+          maxLength: 13
+          description: "Texto que irá aparecer na fatura do cliente depois do nome da loja."
+        tid:
+          type: string
+          description: "Código que identifica a transação na adquirente."
+        nsu:
+          type: string
+          description: "Data de criação da transação no formato ISODate"
+        date_created:
+          type: string
+          description: "Data de criação da transação no formato ISODate"
+        date_updated:
+          type: string
+          description: "Data de atualização da transação no formato ISODate"
+        amount:
+          type: integer
+          description: "Valor, em centavos, da transação. Exemplo: R$100,00 = 10000"
+          example: 10000
+        authorized_amount:
+          type: integer
+          description: "Valor em centavos autorizado na transação, sempre menor ou igual a amount."
+        paid_amount:
+          type: integer
+          description: "Valor em centavos capturado na transação, sempre menor ou igual a authorized_amount."
+        refunded_amount:
+          type: integer
+          description: "Valor em centavos estornado até o momento na transação, sempre menor ou igual a paidamount"
+        installments:
+          type: integer
+          minimum: 1
+          maximum: 12
+          description: "Número de parcelas a serem cobradas."
+        id:
+          type: integer
+          description: "Número identificador da transação"
+        cost:
+          type: integer
+          description: "Custo da transação para o lojista, envolvendo processamento e antifraude."
+        card_holder_name:
+          type: string
+          description: "Nome do portador do cartão."
+        card_last_digits:
+          type: string
+          minLength: 4
+          maxLength: 4
+          description: "Últimos 4 dígitos do cartão."
+        card_first_digits:
+          type: string
+          minLength: 5
+          maxLength: 5
+          description: "Primeiros 5 dígitos do cartão"
+        card_brand:
+          type: string
+          description: "Bandeira do cartão."
+        card_pin_mode:
+          type: string
+          description: "Usado em transações EMV, define se a validação do cartão aconteceu online(com banco emissor), ou offline( através do chip)."
+        postback_url:
+          type: string
+          description: "URL (endpoint) de seu sistema que recebe notificações a cada mudança no status da transação."
+        payment_method:
+          type: string
+          enum:
+          - credit_card
+          - boleto
+          description: "Método de pagamento"
+        capture_method:
+          type: string
+          enum:
+          - magstripe
+          - emv
+          - ecommerce
+          description: "Define qual foi a forma de captura dos dados de pagamento."
+        antifraud_score:
+          type: string
+          description: "Define qual foi a nota de antifraude atribuída a transação. Lembrando que por padrão, transações com score >= 95 são recusadas."
+        boleto_url:
+          type: string
+          description: "URL do boleto para impressão"
+        boleto_barcode:
+          type: string
+          description: "Código de barras do boleto gerado na transação"
+        boleto_expiration_date:
+          type: string
+          description: "Data de expiração do boleto (em ISODate)"
+        referer:
+          type: string
+          description: "Mostra se a transação foi criada utilizando a API Key ou Encryption Key"
+        ip:
+          type: string
+          description: "IP de origem que criou a transação, podendo ser diretamente de seu cliente, caso a requisição venha diretamente do client-side, ou de seus servidores, caso tudo esteja centralizando em sua aplicação no server-side."
+        subscription_id:
+          type: integer
+          description: "Caso essa transação tenha sido originada na cobrança de uma assinatura, o id desta será o valor dessa propriedade."
+        customer:
+          $ref: "#/components/schemas/Customer"
+        billing:
+          $ref: "#/components/schemas/Billing"
+        shipping:
+          $ref: "#/components/schemas/Shipping"
+        items:
+          $ref: "#/components/schemas/Items"
+        address:
+          $ref: "#/components/schemas/Address"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Documents"
+          description: "Informações de documentos do comprador. Obrigatório com o antifraude habilitado."
+        metadata:
+          type: object
+          description: "Objeto com dados adicionais informados na criação da transação."
+        split_rules:
+          $ref: "#/components/schemas/Split_rules"
+        antifraud_metadata:
+          type: object
+          description: "Objeto com dados usados na integração com antifraude."
+        session:
+          type: string
+          description: "Valor único que identifica a sessão do usuário acessando o site"
+        reference_key:
+          type: string
+          description: "Valor único que identifica a transação para permitir uma nova tentativa de requisição com a segurança de que a mesma operação não será executada duas vezes acidentalmente."
+      xml:
+        name: TransactionsResponse
+
+  ############################  EXAMPLES   ############################     
+  examples:   
+    cartaoCredito:
+      value:
+        amount: 21000
+        card_number: '4111111111111111'
+        card_cvv: '123'
+        card_expiration_date: 0922
+        card_holder_name: Monica Geller
+        customer:
+          external_id: '#3311'
+          name: Monica Geller
+          type: individual
+          country: br
+          email: monica@nabucodonozor.com
+          documents:
+            - type: cpf
+              number: '30621143050'
+          phone_numbers:
+            - '+5511999998889'
+            - '+5511888889990'
+          birthday: '1969-01-01'
+        billing:
+          name: Chandler Bing
+          address:
+            country: br
+            state: sp
+            city: Cotia
+            neighborhood: Rio Cotia
+            street: Rua Friends
+            street_number: '9999'
+            zipcode: '06714360'
+        shipping:
+          name: Rachel Green
+          fee: 1000
+          delivery_date: '2000-12-22'
+          expedited: true
+          address:
+            country: br
+            state: sp
+            city: Cotia
+            neighborhood: Rio Cotia
+            street: Rua Friends
+            street_number: '9999'
+            zipcode: '06714360'
+        items:
+          - id: a123
+            title: Yellow pill
+            unit_price: 10000
+            quantity: 1
+            tangible: true
+    
+    boleto:
+      value:
+        amount: 2100
+        payment_method: boleto
+        customer:
+          type: individual
+          country: br
+          name: Daenerys Targaryen
+          documents:
+            - type: cpf
+              number: '00000000000'
+              
+    cartaoCreditoResponse:
+      value:
+        object: transaction
+        status: paid
+        refse_reason: null
+        status_reason: acquirer
+        acquirer_response_code: '0000'
+        acquirer_name: pagarme
+        acquirer_id: 5969170917bce0470c8bf099
+        authorization_code: '65208'
+        soft_descriptor: null
+        tid: 1830855
+        nsu: 1830855
+        date_created: '2017-08-14T20:35:46.046Z'
+        date_updated: '2017-08-14T20:35:46.455Z'
+        amount: 10000
+        authorized_amount: 10000
+        paid_amount: 10000
+        refunded_amount: 0
+        installments: 1
+        id: 1830855
+        cost: 50
+        card_holder_name: Morpheus Fishburne
+        card_last_digits: '1111'
+        card_first_digits: '411111'
+        card_brand: visa
+        card_pin_mode: null
+        postback_url: null
+        payment_method: credit_card
+        capture_method: ecommerce
+        antifraud_score: null
+        boleto_url: null
+        boleto_barcode: null
+        boleto_expiration_date: null
+        referer: api_key
+        ip: 10.2.11.17
+        subscription_id: null
+        phone: null
+        address: null
+        customer:
+          object: customer
+          id: 233238
+          external_id: '#3311'
+          type: individual
+          country: br
+          document_number: null
+          document_type: cpf
+          name: Morpheus Fishburne
+          email: mopheus@nabucodonozor.com
+          phone_numbers:
+            - '+5511999998888'
+            - '+5511888889999'
+          born_at: null
+          birthday: '1965-01-01'
+          gender: null
+          date_created: '2017-08-14T20:35:45.963Z'
+          documents:
+            - object: document
+              id: doc_cj6cmcm2l01z5696dyamemdnf
+              type: cpf
+              number: '30621143049'
+        billing:
+          address:
+            object: address
+            street: Rua Matrix
+            complementary: null
+            street_number: '9999'
+            neighborhood: Rio Cotia
+            city: Cotia
+            state: sp
+            zipcode: '06714360'
+            country: br
+            id: 145818
+          object: billing
+          id: 30
+          name: Trinity Moss
+        shipping:
+          address:
+            object: address
+            street: Rua Matrix
+            complementary: null
+            street_number: '9999'
+            neighborhood: Rio Cotia
+            city: Cotia
+            state: sp
+            zipcode: '06714360'
+            country: br
+            id: 145819
+          object: shipping
+          id: 25
+          name: Neo Reeves
+          fee: 1000
+          delivery_date: '2000-12-21'
+          expedited: true
+        items:
+          - object: item
+            id: r123
+            title: Red pill
+            unit_price: 10000
+            quantity: 1
+            category: null
+            tangible: true
+            venue: null
+            date: null
+          - object: item
+            id: b123
+            title: Blue pill
+            unit_price: 10000
+            quantity: 1
+            category: null
+            tangible: true
+            venue: null
+            date: null
+        card:
+          object: card
+          id: card_cj6cmcm4301z6696dt3wypskk
+          date_created: '2017-08-14T20:35:46.036Z'
+          date_updated: '2017-08-14T20:35:46.524Z'
+          brand: visa
+          holder_name: Morpheus Fishburne
+          first_digits: '411111'
+          last_digits: '1111'
+          country: UNITED STATES
+          fingerprint: 3ace8040fba3f5c3a0690ea7964ea87d97123437
+          valid: true
+          expiration_date: 0922
+        split_rules: null
+        metadata: {}
+        antifraud_metadata: {}
+        reference_key: null
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: query
+      name: api_key
+
+externalDocs:
+  description: "Para saber mais sobre a API do Pagar.me"
+  url: https://docs.pagar.me/reference

@@ -1,0 +1,13 @@
+{
+    "amount": 2100, 
+    "payment_method": "boleto",
+    "customer":{
+        "type": "individual",
+        "country": "br",
+        "name": "Daenerys Targaryen",
+        "documents": [{
+            "type": "cpf",
+            "number": "00000000000"
+        }]
+    }
+}
